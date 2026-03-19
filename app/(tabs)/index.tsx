@@ -1,98 +1,206 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+} from "react-native";
+import { useState } from "react";
+import { useRouter } from "expo-router";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function Index() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("student");
+  const router = useRouter();
 
-export default function HomeScreen() {
+  const roles = ["student", "teacher", "accountant", "admin"];
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <View style={styles.container}>
+      {/* Logo area */}
+      <View style={styles.logoArea}>
+        <View style={styles.logoBox}>
+          <Text style={styles.logoText}>S</Text>
+        </View>
+        <Text style={styles.appName}>SchoolOS</Text>
+        <Text style={styles.tagline}>School Management System</Text>
+      </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      {/* Card */}
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Sign in</Text>
+
+        {/* Role selector */}
+        <Text style={styles.label}>Login as</Text>
+        <View style={styles.roleRow}>
+          {roles.map((r) => (
+            <TouchableOpacity
+              key={r}
+              style={[styles.rolePill, role === r && styles.rolePillActive]}
+              onPress={() => setRole(r)}
+            >
+              <Text
+                style={[
+                  styles.rolePillText,
+                  role === r && styles.rolePillTextActive,
+                ]}
+              >
+                {r.charAt(0).toUpperCase() + r.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Email */}
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter your email"
+          placeholderTextColor="#999"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+
+        {/* Password */}
+        <Text style={styles.label}>Password</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter your password"
+          placeholderTextColor="#999"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+        />
+
+        {/* Login button */}
+        <TouchableOpacity
+          style={styles.loginBtn}
+          onPress={() => {
+            if (role === "student") router.push("/student/dashboard" as any);
+            else if (role === "teacher")
+              router.push("/teacher/dashboard" as any);
+            else if (role === "accountant")
+              router.push("/accountant/dashboard" as any);
+            else if (role === "admin") router.push("/admin/dashboard" as any);
+          }}
+        >
+          <Text style={styles.loginBtnText}>Sign in</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.forgotText}>Forgot password?</Text>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#1a3a6b",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  logoArea: {
+    alignItems: "center",
+    marginBottom: 32,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  logoBox: {
+    width: 60,
+    height: 60,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  logoText: {
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#ffffff",
+  },
+  appName: {
+    fontSize: 26,
+    fontWeight: "bold",
+    color: "#ffffff",
+    marginBottom: 4,
+  },
+  tagline: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.6)",
+  },
+  card: {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    borderRadius: 20,
+    padding: 24,
+  },
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#1a3a6b",
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#666",
+    marginBottom: 6,
+    marginTop: 14,
+  },
+  roleRow: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  rolePill: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    backgroundColor: "#f5f5f5",
+  },
+  rolePillActive: {
+    backgroundColor: "#1a3a6b",
+    borderColor: "#1a3a6b",
+  },
+  rolePillText: {
+    fontSize: 12,
+    color: "#666",
+  },
+  rolePillTextActive: {
+    color: "#ffffff",
+    fontWeight: "600",
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    color: "#333",
+    backgroundColor: "#fafafa",
+  },
+  loginBtn: {
+    backgroundColor: "#1a3a6b",
+    borderRadius: 10,
+    padding: 14,
+    alignItems: "center",
+    marginTop: 24,
+  },
+  loginBtnText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "bold",
+  },
+  forgotText: {
+    textAlign: "center",
+    marginTop: 14,
+    fontSize: 13,
+    color: "#1a3a6b",
   },
 });
