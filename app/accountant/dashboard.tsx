@@ -5,8 +5,18 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { API_URL } from "../../config";
+
+const getAuthHeader = async () => {
+  const token = await AsyncStorage.getItem("token");
+  return { Authorization: `Bearer ${token}` };
+};
 
 export default function AccountantDashboard() {
   const [activeTab, setActiveTab] = useState("home");
@@ -52,187 +62,304 @@ export default function AccountantDashboard() {
 }
 
 function HomeTab() {
+  const [fees, setFees] = useState<any[]>([]);
+  const [accountantName, setAccountantName] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const headers = await getAuthHeader();
+
+        const meRes = await axios.get(`${API_URL}/api/auth/me`, { headers });
+        setAccountantName(meRes.data.name);
+
+        const feesRes = await axios.get(`${API_URL}/api/fees`, { headers });
+        setFees(feesRes.data);
+      } catch (error: any) {
+        console.log("Error loading accountant data:", error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  const totalCollected = fees
+    .filter((f) => f.status === "paid")
+    .reduce((sum, f) => sum + f.amount, 0);
+  const totalOutstanding = fees
+    .filter((f) => f.status !== "paid")
+    .reduce((sum, f) => sum + f.amount, 0);
+  const totalOverdue = fees
+    .filter((f) => f.status === "overdue")
+    .reduce((sum, f) => sum + f.amount, 0);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#0f6e56" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <View>
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Good morning,</Text>
-          <Text style={styles.name}>Finance Admin</Text>
+          <Text style={styles.name}>{accountantName || "Finance Admin"}</Text>
           <Text style={styles.badge}>Accountant · Spring Term 2026</Text>
         </View>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>FA</Text>
+          <Text style={styles.avatarText}>
+            {accountantName ? accountantName.charAt(0).toUpperCase() : "FA"}
+          </Text>
         </View>
       </View>
 
       <View style={styles.metrics}>
         <View style={[styles.metric, { backgroundColor: "#eaf3de" }]}>
-          <Text style={[styles.metricVal, { color: "#3b6d11" }]}>$84,200</Text>
+          <Text style={[styles.metricVal, { color: "#3b6d11" }]}>
+            ${totalCollected.toFixed(0)}
+          </Text>
           <Text style={styles.metricLabel}>Collected</Text>
         </View>
         <View style={[styles.metric, { backgroundColor: "#fcebeb" }]}>
-          <Text style={[styles.metricVal, { color: "#a32d2d" }]}>$23,800</Text>
+          <Text style={[styles.metricVal, { color: "#a32d2d" }]}>
+            ${totalOutstanding.toFixed(0)}
+          </Text>
           <Text style={styles.metricLabel}>Outstanding</Text>
         </View>
       </View>
       <View style={[styles.metrics, { marginTop: 0 }]}>
         <View style={[styles.metric, { backgroundColor: "#fcebeb" }]}>
-          <Text style={[styles.metricVal, { color: "#a32d2d" }]}>$9,400</Text>
+          <Text style={[styles.metricVal, { color: "#a32d2d" }]}>
+            ${totalOverdue.toFixed(0)}
+          </Text>
           <Text style={styles.metricLabel}>Overdue</Text>
         </View>
         <View style={[styles.metric, { backgroundColor: "#e6f1fb" }]}>
-          <Text style={[styles.metricVal, { color: "#185fa5" }]}>$12,600</Text>
-          <Text style={styles.metricLabel}>This month</Text>
+          <Text style={[styles.metricVal, { color: "#185fa5" }]}>
+            {fees.length}
+          </Text>
+          <Text style={styles.metricLabel}>Total Records</Text>
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recent Activity</Text>
-        {[
-          {
-            dot: "#3b6d11",
-            title: "Payment received — Aisha Kumar",
-            sub: "$2,400 · Spring term · Today",
-          },
-          {
-            dot: "#e24b4a",
-            title: "Overdue reminder sent — 38 students",
-            sub: "Via email + in-app · Today",
-          },
-          {
-            dot: "#854f0b",
-            title: "Partial payment — James Miller",
-            sub: "$900 of $1,800 · Mar 10",
-          },
-          {
-            dot: "#3266ad",
-            title: "Summer term fees published",
-            sub: "All students notified · Mar 8",
-          },
-        ].map((item, i) => (
-          <View key={i} style={styles.actItem}>
-            <View style={[styles.actDot, { backgroundColor: item.dot }]} />
-            <View style={styles.actInfo}>
-              <Text style={styles.actTitle}>{item.title}</Text>
-              <Text style={styles.actSub}>{item.sub}</Text>
+        <Text style={styles.sectionTitle}>Recent Fee Records</Text>
+        {fees.length === 0 ? (
+          <Text style={styles.emptyText}>No fee records yet.</Text>
+        ) : (
+          fees.slice(0, 4).map((f, i) => (
+            <View key={i} style={styles.actItem}>
+              <View
+                style={[
+                  styles.actDot,
+                  {
+                    backgroundColor:
+                      f.status === "paid"
+                        ? "#3b6d11"
+                        : f.status === "overdue"
+                          ? "#e24b4a"
+                          : "#854f0b",
+                  },
+                ]}
+              />
+              <View style={styles.actInfo}>
+                <Text style={styles.actTitle}>
+                  {f.feeType} — {f.student?.user?.name || "Student"}
+                </Text>
+                <Text style={styles.actSub}>
+                  ${f.amount} · {f.status} ·{" "}
+                  {new Date(f.createdAt).toDateString()}
+                </Text>
+              </View>
             </View>
-          </View>
-        ))}
+          ))
+        )}
       </View>
     </View>
   );
 }
 
 function StudentsTab() {
-  const students = [
-    {
-      initials: "RP",
-      name: "Rohan Patel",
-      class: "Grade 10-B",
-      amount: "$1,800",
-      status: "overdue",
-      bg: "#fcebeb",
-      fg: "#a32d2d",
-    },
-    {
-      initials: "JM",
-      name: "James Miller",
-      class: "Grade 10-A",
-      amount: "$900",
-      status: "partial",
-      bg: "#faeeda",
-      fg: "#854f0b",
-    },
-    {
-      initials: "AK",
-      name: "Aisha Kumar",
-      class: "Grade 10-A",
-      amount: "$2,400",
-      status: "paid",
-      bg: "#eaf3de",
-      fg: "#3b6d11",
-    },
-    {
-      initials: "SN",
-      name: "Sara Nguyen",
-      class: "Grade 9-C",
-      amount: "$2,400",
-      status: "overdue",
-      bg: "#fcebeb",
-      fg: "#a32d2d",
-    },
-    {
-      initials: "LT",
-      name: "Liam Torres",
-      class: "Grade 11-B",
-      amount: "$2,400",
-      status: "paid",
-      bg: "#eaf3de",
-      fg: "#3b6d11",
-    },
-    {
-      initials: "MW",
-      name: "Maya Wong",
-      class: "Grade 9-C",
-      amount: "$1,200",
-      status: "partial",
-      bg: "#faeeda",
-      fg: "#854f0b",
-    },
-  ];
+  const [students, setStudents] = useState<any[]>([]);
+  const [fees, setFees] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const headers = await getAuthHeader();
+        const studentsRes = await axios.get(`${API_URL}/api/students`, {
+          headers,
+        });
+        setStudents(studentsRes.data);
+        const feesRes = await axios.get(`${API_URL}/api/fees`, { headers });
+        setFees(feesRes.data);
+      } catch (error: any) {
+        Alert.alert("Error", "Could not load data");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#0f6e56" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.tabContent}>
       <Text style={styles.tabTitle}>Student Fee Records</Text>
-      {students.map((s, i) => (
-        <View key={i} style={styles.feeRow}>
-          <View style={[styles.studentAvatar, { backgroundColor: s.bg }]}>
-            <Text style={[styles.studentInitials, { color: s.fg }]}>
-              {s.initials}
-            </Text>
-          </View>
-          <View style={styles.studentInfo}>
-            <Text style={styles.studentName}>{s.name}</Text>
-            <Text style={styles.studentClass}>{s.class}</Text>
-          </View>
-          <Text style={[styles.feeAmt, { color: s.fg }]}>{s.amount}</Text>
-          <Text
-            style={[
-              styles.feeBadge,
-              s.status === "paid"
-                ? styles.badgePaid
-                : s.status === "overdue"
-                  ? styles.badgeOverdue
-                  : styles.badgePartial,
-            ]}
-          >
-            {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
-          </Text>
-        </View>
-      ))}
+      {students.length === 0 ? (
+        <Text style={styles.emptyText}>No students yet.</Text>
+      ) : (
+        students.map((s, i) => {
+          const studentFees = fees.filter((f) => f.studentId === s.id);
+          const totalOwed = studentFees.reduce((sum, f) => sum + f.amount, 0);
+          const hasPaid = studentFees.every((f) => f.status === "paid");
+          const hasOverdue = studentFees.some((f) => f.status === "overdue");
+          const status =
+            studentFees.length === 0
+              ? "none"
+              : hasPaid
+                ? "paid"
+                : hasOverdue
+                  ? "overdue"
+                  : "partial";
+
+          return (
+            <View key={i} style={styles.feeRow}>
+              <View
+                style={[styles.studentAvatar, { backgroundColor: "#e6f1fb" }]}
+              >
+                <Text style={[styles.studentInitials, { color: "#185fa5" }]}>
+                  {s.user.name.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+              <View style={styles.studentInfo}>
+                <Text style={styles.studentName}>{s.user.name}</Text>
+                <Text style={styles.studentClass}>{s.class}</Text>
+              </View>
+              <Text style={[styles.feeAmt, { color: "#333" }]}>
+                ${totalOwed}
+              </Text>
+              <Text
+                style={
+                  status === "paid"
+                    ? styles.badgePaid
+                    : status === "overdue"
+                      ? styles.badgeOverdue
+                      : styles.badgePartial
+                }
+              >
+                {status === "none"
+                  ? "No fees"
+                  : status.charAt(0).toUpperCase() + status.slice(1)}
+              </Text>
+            </View>
+          );
+        })
+      )}
     </View>
   );
 }
 
 function AddFeeTab() {
-  const [student, setStudent] = useState("");
+  const [students, setStudents] = useState<any[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState("");
   const [feeType, setFeeType] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const loadStudents = async () => {
+      try {
+        const headers = await getAuthHeader();
+        const res = await axios.get(`${API_URL}/api/students`, { headers });
+        setStudents(res.data);
+      } catch (error: any) {
+        console.log("Error loading students:", error.message);
+      }
+    };
+    loadStudents();
+  }, []);
+
+  const handleAddFee = async () => {
+    if (!selectedStudent || !feeType || !amount) {
+      Alert.alert("Error", "Please fill in all required fields");
+      return;
+    }
+    setSaving(true);
+    try {
+      const headers = await getAuthHeader();
+      await axios.post(
+        `${API_URL}/api/fees`,
+        {
+          studentId: Number(selectedStudent),
+          amount: Number(amount),
+          feeType,
+          status: "overdue",
+          dueDate: new Date().toISOString(),
+          note,
+        },
+        { headers },
+      );
+      setSaved(true);
+      setSelectedStudent("");
+      setFeeType("");
+      setAmount("");
+      setNote("");
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error: any) {
+      Alert.alert("Error", "Could not add fee");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <View style={styles.tabContent}>
       <Text style={styles.tabTitle}>Add Fee to Student</Text>
 
-      <Text style={styles.formLabel}>Student name</Text>
-      <TextInput
-        style={styles.formInput}
-        placeholder="e.g. Rohan Patel"
-        placeholderTextColor="#999"
-        value={student}
-        onChangeText={setStudent}
-      />
+      <Text style={styles.formLabel}>Select Student</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginBottom: 8 }}
+      >
+        {students.map((s) => (
+          <TouchableOpacity
+            key={s.id}
+            style={[
+              styles.feeTypePill,
+              selectedStudent === String(s.id) && styles.feeTypePillActive,
+            ]}
+            onPress={() => setSelectedStudent(String(s.id))}
+          >
+            <Text
+              style={[
+                styles.feeTypePillText,
+                selectedStudent === String(s.id) &&
+                  styles.feeTypePillTextActive,
+              ]}
+            >
+              {s.user.name}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       <Text style={styles.formLabel}>Fee type</Text>
       <View style={styles.feeTypeRow}>
@@ -281,86 +408,20 @@ function AddFeeTab() {
 
       {saved && (
         <View style={styles.successBox}>
-          <Text style={styles.successText}>
-            Fee added successfully! Student notified.
-          </Text>
+          <Text style={styles.successText}>Fee added successfully!</Text>
         </View>
       )}
 
       <TouchableOpacity
         style={styles.saveBtn}
-        onPress={() => {
-          setSaved(true);
-          setTimeout(() => setSaved(false), 3000);
-        }}
+        onPress={handleAddFee}
+        disabled={saving}
       >
-        <Text style={styles.saveBtnText}>Add Fee and Notify Student</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.tabTitle2}>Record Payment</Text>
-
-      <Text style={styles.formLabel}>Student name</Text>
-      <TextInput
-        style={styles.formInput}
-        placeholder="e.g. Rohan Patel"
-        placeholderTextColor="#999"
-      />
-
-      <Text style={styles.formLabel}>Amount paid ($)</Text>
-      <TextInput
-        style={styles.formInput}
-        placeholder="0.00"
-        placeholderTextColor="#999"
-        keyboardType="numeric"
-      />
-
-      <Text style={styles.formLabel}>Payment method</Text>
-      <View style={styles.feeTypeRow}>
-        {["Online", "Cash", "Cheque", "Bank"].map((method) => (
-          <TouchableOpacity key={method} style={styles.feeTypePill}>
-            <Text style={styles.feeTypePillText}>{method}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <TouchableOpacity
-        style={[styles.saveBtn, { backgroundColor: "#0f6e56", marginTop: 12 }]}
-      >
-        <Text style={styles.saveBtnText}>Save and Send Receipt</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.tabTitle2}>Apply Deduction / Waiver</Text>
-
-      <Text style={styles.formLabel}>Student name</Text>
-      <TextInput
-        style={styles.formInput}
-        placeholder="e.g. Sara Nguyen"
-        placeholderTextColor="#999"
-      />
-
-      <Text style={styles.formLabel}>Deduction type</Text>
-      <View style={styles.feeTypeRow}>
-        {["Scholarship", "Sibling", "Merit", "Hardship", "Error"].map(
-          (type) => (
-            <TouchableOpacity key={type} style={styles.feeTypePill}>
-              <Text style={styles.feeTypePillText}>{type}</Text>
-            </TouchableOpacity>
-          ),
+        {saving ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.saveBtnText}>Add Fee</Text>
         )}
-      </View>
-
-      <Text style={styles.formLabel}>Amount ($)</Text>
-      <TextInput
-        style={styles.formInput}
-        placeholder="0.00"
-        placeholderTextColor="#999"
-        keyboardType="numeric"
-      />
-
-      <TouchableOpacity
-        style={[styles.saveBtn, { backgroundColor: "#a32d2d", marginTop: 12 }]}
-      >
-        <Text style={styles.saveBtnText}>Apply Deduction</Text>
       </TouchableOpacity>
     </View>
   );
@@ -377,8 +438,8 @@ function NotifyTab() {
 
       <Text style={styles.formLabel}>Send to</Text>
       {[
-        { key: "overdue", label: "All overdue students (38)" },
-        { key: "pending", label: "All pending students (142)" },
+        { key: "overdue", label: "All overdue students" },
+        { key: "pending", label: "All pending students" },
         { key: "all", label: "Entire school" },
       ].map((item) => (
         <TouchableOpacity
@@ -423,16 +484,6 @@ function NotifyTab() {
         </TouchableOpacity>
       ))}
 
-      <Text style={[styles.formLabel, { marginTop: 14 }]}>
-        Custom message (optional)
-      </Text>
-      <TextInput
-        style={[styles.formInput, { height: 80, textAlignVertical: "top" }]}
-        placeholder="Leave empty to use default template..."
-        placeholderTextColor="#999"
-        multiline
-      />
-
       {sent && (
         <View style={styles.successBox}>
           <Text style={styles.successText}>
@@ -450,39 +501,49 @@ function NotifyTab() {
       >
         <Text style={styles.saveBtnText}>Send Notification</Text>
       </TouchableOpacity>
-
-      <Text style={styles.tabTitle2}>Notifications Sent</Text>
-      {[
-        {
-          dot: "#e24b4a",
-          title: "Overdue reminder — 38 students",
-          time: "Today",
-        },
-        {
-          dot: "#3b6d11",
-          title: "Receipt — Aisha Kumar $2,400",
-          time: "Mar 12",
-        },
-        { dot: "#854f0b", title: "Partial ack — James Miller", time: "Mar 10" },
-        {
-          dot: "#3266ad",
-          title: "Summer fees published — all students",
-          time: "Mar 8",
-        },
-      ].map((item, i) => (
-        <View key={i} style={styles.actItem}>
-          <View style={[styles.actDot, { backgroundColor: item.dot }]} />
-          <View style={styles.actInfo}>
-            <Text style={styles.actTitle}>{item.title}</Text>
-            <Text style={styles.actSub}>{item.time}</Text>
-          </View>
-        </View>
-      ))}
     </View>
   );
 }
 
 function ReportsTab() {
+  const [fees, setFees] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadFees = async () => {
+      try {
+        const headers = await getAuthHeader();
+        const res = await axios.get(`${API_URL}/api/fees`, { headers });
+        setFees(res.data);
+      } catch (error: any) {
+        console.log("Error loading fees:", error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadFees();
+  }, []);
+
+  const totalCollected = fees
+    .filter((f) => f.status === "paid")
+    .reduce((sum, f) => sum + f.amount, 0);
+  const totalOutstanding = fees
+    .filter((f) => f.status !== "paid")
+    .reduce((sum, f) => sum + f.amount, 0);
+  const totalOverdue = fees
+    .filter((f) => f.status === "overdue")
+    .reduce((sum, f) => sum + f.amount, 0);
+  const total = totalCollected + totalOutstanding;
+  const pct = total > 0 ? Math.round((totalCollected / total) * 100) : 0;
+
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#0f6e56" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.tabContent}>
       <Text style={styles.tabTitle}>Financial Reports</Text>
@@ -490,48 +551,37 @@ function ReportsTab() {
       <View style={styles.reportCard}>
         <Text style={styles.reportTitle}>Spring Term 2026</Text>
         <View style={styles.reportRow}>
-          <Text style={styles.reportLabel}>Target</Text>
-          <Text style={styles.reportVal}>$108,000</Text>
+          <Text style={styles.reportLabel}>Total Records</Text>
+          <Text style={styles.reportVal}>{fees.length}</Text>
         </View>
         <View style={styles.reportRow}>
           <Text style={styles.reportLabel}>Collected</Text>
-          <Text style={[styles.reportVal, { color: "#3b6d11" }]}>$84,200</Text>
+          <Text style={[styles.reportVal, { color: "#3b6d11" }]}>
+            ${totalCollected.toFixed(0)}
+          </Text>
         </View>
         <View style={styles.reportRow}>
           <Text style={styles.reportLabel}>Outstanding</Text>
-          <Text style={[styles.reportVal, { color: "#854f0b" }]}>$23,800</Text>
+          <Text style={[styles.reportVal, { color: "#854f0b" }]}>
+            ${totalOutstanding.toFixed(0)}
+          </Text>
         </View>
         <View style={styles.reportRow}>
           <Text style={styles.reportLabel}>Overdue</Text>
-          <Text style={[styles.reportVal, { color: "#a32d2d" }]}>$9,400</Text>
+          <Text style={[styles.reportVal, { color: "#a32d2d" }]}>
+            ${totalOverdue.toFixed(0)}
+          </Text>
         </View>
         <View style={styles.progressBar}>
           <View
             style={[
               styles.progressFill,
-              { width: "78%", backgroundColor: "#3b6d11" },
+              { width: `${pct}%`, backgroundColor: "#3b6d11" },
             ]}
           />
         </View>
-        <Text style={styles.reportPct}>78% collected</Text>
+        <Text style={styles.reportPct}>{pct}% collected</Text>
       </View>
-
-      {["January", "February", "March"].map((month, i) => {
-        const collected = [18400, 15200, 12600][i];
-        const target = 36000;
-        const pct = Math.round((collected / target) * 100);
-        return (
-          <View key={month} style={styles.monthRow}>
-            <Text style={styles.monthName}>{month}</Text>
-            <View style={styles.monthBar}>
-              <View style={[styles.monthFill, { width: `${pct}%` }]} />
-            </View>
-            <Text style={styles.monthAmt}>
-              ${(collected / 1000).toFixed(1)}k
-            </Text>
-          </View>
-        );
-      })}
 
       <TouchableOpacity style={styles.saveBtn}>
         <Text style={styles.saveBtnText}>Export Report (PDF)</Text>
@@ -543,6 +593,19 @@ function ReportsTab() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f6fa" },
   content: { flex: 1 },
+  loadingBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+  },
+  loadingText: { marginTop: 12, fontSize: 13, color: "#999" },
+  emptyText: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 13,
+    marginTop: 20,
+  },
   header: {
     backgroundColor: "#0f6e56",
     padding: 24,
@@ -612,13 +675,6 @@ const styles = StyleSheet.create({
     color: "#0f6e56",
     marginBottom: 14,
   },
-  tabTitle2: {
-    fontSize: 15,
-    fontWeight: "bold",
-    color: "#0f6e56",
-    marginTop: 24,
-    marginBottom: 12,
-  },
   feeRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -640,15 +696,30 @@ const styles = StyleSheet.create({
   studentName: { fontSize: 13, fontWeight: "600", color: "#333" },
   studentClass: { fontSize: 11, color: "#999", marginTop: 1 },
   feeAmt: { fontSize: 13, fontWeight: "bold" },
-  feeBadge: {
+  badgePaid: {
     fontSize: 10,
+    backgroundColor: "#eaf3de",
+    color: "#3b6d11",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 4,
   },
-  badgePaid: { backgroundColor: "#eaf3de", color: "#3b6d11" },
-  badgeOverdue: { backgroundColor: "#fcebeb", color: "#a32d2d" },
-  badgePartial: { backgroundColor: "#faeeda", color: "#854f0b" },
+  badgeOverdue: {
+    fontSize: 10,
+    backgroundColor: "#fcebeb",
+    color: "#a32d2d",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  badgePartial: {
+    fontSize: 10,
+    backgroundColor: "#faeeda",
+    color: "#854f0b",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
   formLabel: {
     fontSize: 12,
     fontWeight: "600",
@@ -748,22 +819,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#3b6d11",
     marginTop: 6,
-    textAlign: "right",
-  },
-  monthRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-    gap: 10,
-  },
-  monthName: { fontSize: 12, color: "#666", width: 60 },
-  monthBar: { flex: 1, height: 8, backgroundColor: "#f0f0f0", borderRadius: 4 },
-  monthFill: { height: 8, backgroundColor: "#0f6e56", borderRadius: 4 },
-  monthAmt: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#333",
-    width: 40,
     textAlign: "right",
   },
 });

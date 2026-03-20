@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,36 +11,92 @@ datasource db {
 }
 
 model User {
-  id        Int     @id @default(autoincrement())
-  email     String  @unique
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
   password  String
   name      String
-  role      String  @default("student")
+  role      String   @default("student")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  student   Student?
-  teacher   Teacher?
+
+  student          Student?
+  teacher          Teacher?
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
 }
 
 model Student {
-  id        Int     @id @default(autoincrement())
-  userId    Int     @unique
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
   rollNo    String
   class     String
   section   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attendance  Attendance[]
+  feeRecords  FeeRecord[]
 }
 
 model Teacher {
-  id        Int     @id @default(autoincrement())
-  userId    Int     @unique
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
   subject   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attendance  Attendance[]
+  assignments Assignment[]
+}
+
+model Attendance {
+  id        Int      @id @default(autoincrement())
+  studentId Int
+  teacherId Int
+  date      DateTime
+  status    String
+  subject   String
+  createdAt DateTime @default(now())
+
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+}
+
+model FeeRecord {
+  id        Int       @id @default(autoincrement())
+  studentId Int
+  amount    Float
+  feeType   String
+  status    String
+  dueDate   DateTime
+  paidDate  DateTime?
+  note      String?
+  createdAt DateTime  @default(now())
+
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+model Assignment {
+  id        Int      @id @default(autoincrement())
+  teacherId Int
+  title     String
+  subject   String
+  class     String
+  dueDate   DateTime
+  createdAt DateTime @default(now())
+
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+}
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  senderId   Int
+  receiverId Int
+  content    String
+  createdAt  DateTime @default(now())
+
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
 }

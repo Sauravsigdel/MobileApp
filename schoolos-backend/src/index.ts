@@ -5,6 +5,11 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import authRoutes from "./routes/auth";
+import studentRoutes from "./routes/students";
+import attendanceRoutes from "./routes/attendance";
+import feesRoutes from "./routes/fees";
+import assignmentRoutes from "./routes/assignments";
+import messageRoutes from "./routes/messages";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,6 +22,11 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api/auth", authRoutes);
+app.use("/api/students", studentRoutes);
+app.use("/api/attendance", attendanceRoutes);
+app.use("/api/fees", feesRoutes);
+app.use("/api/assignments", assignmentRoutes);
+app.use("/api/messages", messageRoutes);
 
 // Global error handler
 app.use(
@@ -37,25 +47,20 @@ const server = app.listen(PORT, () => {
   console.log(`SchoolOS backend running on port ${PORT}`);
 });
 
-// Handle server errors
 server.on("error", (error: any) => {
   if (error.code === "EADDRINUSE") {
-    console.error(
-      `Port ${PORT} is already in use. Please use a different port.`,
-    );
+    console.error(`Port ${PORT} is already in use.`);
   } else {
     console.error("Server error:", error);
   }
   process.exit(1);
 });
 
-// Handle uncaught exceptions
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
   process.exit(1);
 });
 
-// Handle unhandled promise rejections
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
   process.exit(1);

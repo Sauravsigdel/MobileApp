@@ -4,15 +4,24 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { API_URL } from "../../config";
+
+const getAuthHeader = async () => {
+  const token = await AsyncStorage.getItem("token");
+  return { Authorization: `Bearer ${token}` };
+};
 
 export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState("home");
 
   return (
     <View style={styles.container}>
-      {/* Screen content changes based on tab */}
       <ScrollView style={styles.content}>
         {activeTab === "home" && <HomeTab />}
         {activeTab === "homework" && <HomeworkTab />}
@@ -21,7 +30,6 @@ export default function StudentDashboard() {
         {activeTab === "chat" && <ChatTab />}
       </ScrollView>
 
-      {/* Bottom nav bar */}
       <View style={styles.bottomNav}>
         {[
           { key: "home", label: "Home", icon: "🏠" },
@@ -53,29 +61,97 @@ export default function StudentDashboard() {
 }
 
 function HomeTab() {
+  const [studentName, setStudentName] = useState("");
+  const [studentData, setStudentData] = useState<any>(null);
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [attendance, setAttendance] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const headers = await getAuthHeader();
+
+        // Get student info
+        const meRes = await axios.get(`${API_URL}/api/auth/me`, { headers });
+        setStudentName(meRes.data.name);
+
+        // Get student profile
+        const profileRes = await axios.get(
+          `${API_URL}/api/students/me/profile`,
+          { headers },
+        );
+        setStudentData(profileRes.data);
+
+        // Get assignments
+        const assignRes = await axios.get(`${API_URL}/api/assignments`, {
+          headers,
+        });
+        setAssignments(assignRes.data.slice(0, 3));
+
+        // Get attendance
+        if (profileRes.data?.id) {
+          const attRes = await axios.get(
+            `${API_URL}/api/attendance/student/${profileRes.data.id}`,
+            { headers },
+          );
+          setAttendance(attRes.data);
+        }
+      } catch (error: any) {
+        console.log("Error loading student data:", error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  // Calculate attendance percentage
+  const attendancePct =
+    attendance.length > 0
+      ? Math.round(
+          (attendance.filter((a) => a.status === "P").length /
+            attendance.length) *
+            100,
+        )
+      : 0;
+
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#1a3a6b" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <View>
-      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Good morning,</Text>
-          <Text style={styles.name}>Aisha Kumar</Text>
-          <Text style={styles.badge}>Grade 10-A · Roll No. 14</Text>
+          <Text style={styles.name}>{studentName || "Student"}</Text>
+          <Text style={styles.badge}>
+            {studentData
+              ? `${studentData.class} · Roll No. ${studentData.rollNo}`
+              : "Student"}
+          </Text>
         </View>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>AK</Text>
+          <Text style={styles.avatarText}>
+            {studentName ? studentName.charAt(0).toUpperCase() : "S"}
+          </Text>
         </View>
       </View>
 
-      {/* Stats cards */}
       <View style={styles.cards}>
         <View style={[styles.card, { backgroundColor: "#e6f1fb" }]}>
-          <Text style={styles.cardVal}>94%</Text>
+          <Text style={styles.cardVal}>{attendancePct}%</Text>
           <Text style={styles.cardLabel}>Attendance</Text>
         </View>
         <View style={[styles.card, { backgroundColor: "#eaf3de" }]}>
-          <Text style={styles.cardVal}>98.2%</Text>
-          <Text style={styles.cardLabel}>Avg Grade</Text>
+          <Text style={styles.cardVal}>{assignments.length}</Text>
+          <Text style={styles.cardLabel}>Assignments</Text>
         </View>
         <View style={[styles.card, { backgroundColor: "#eaf3de" }]}>
           <Text style={styles.cardVal}>$0</Text>
@@ -83,42 +159,28 @@ function HomeTab() {
         </View>
       </View>
 
-      {/* Homework due */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Homework Due</Text>
-        <View style={styles.hwItem}>
-          <View style={[styles.hwIcon, { backgroundColor: "#e6f1fb" }]}>
-            <Text>📐</Text>
-          </View>
-          <View style={styles.hwInfo}>
-            <Text style={styles.hwTitle}>Physics — Wave mechanics</Text>
-            <Text style={styles.hwSub}>Mr. Sharma · Due today</Text>
-          </View>
-          <Text style={styles.badgeUrgent}>Today</Text>
-        </View>
-        <View style={styles.hwItem}>
-          <View style={[styles.hwIcon, { backgroundColor: "#eaf3de" }]}>
-            <Text>📝</Text>
-          </View>
-          <View style={styles.hwInfo}>
-            <Text style={styles.hwTitle}>English — Essay draft</Text>
-            <Text style={styles.hwSub}>Ms. Chen · 800 words</Text>
-          </View>
-          <Text style={styles.badgeMid}>Mar 18</Text>
-        </View>
-        <View style={styles.hwItem}>
-          <View style={[styles.hwIcon, { backgroundColor: "#faeeda" }]}>
-            <Text>🧪</Text>
-          </View>
-          <View style={styles.hwInfo}>
-            <Text style={styles.hwTitle}>Chemistry — Lab report</Text>
-            <Text style={styles.hwSub}>Dr. Okonkwo · Report format</Text>
-          </View>
-          <Text style={styles.badgeOk}>Mar 22</Text>
-        </View>
+        <Text style={styles.sectionTitle}>Upcoming Assignments</Text>
+        {assignments.length === 0 ? (
+          <Text style={styles.emptyText}>No assignments yet.</Text>
+        ) : (
+          assignments.map((a, i) => (
+            <View key={i} style={styles.hwItem}>
+              <View style={[styles.hwIcon, { backgroundColor: "#e6f1fb" }]}>
+                <Text>📝</Text>
+              </View>
+              <View style={styles.hwInfo}>
+                <Text style={styles.hwTitle}>{a.title}</Text>
+                <Text style={styles.hwSub}>
+                  {a.subject} · Due {new Date(a.dueDate).toDateString()}
+                </Text>
+              </View>
+              <Text style={styles.badgeOk}>{a.class}</Text>
+            </View>
+          ))
+        )}
       </View>
 
-      {/* Today's schedule */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Today&apos;s Schedule</Text>
         {[
@@ -169,68 +231,57 @@ function HomeTab() {
 }
 
 function HomeworkTab() {
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadAssignments = async () => {
+      try {
+        const headers = await getAuthHeader();
+        const res = await axios.get(`${API_URL}/api/assignments`, { headers });
+        setAssignments(res.data);
+      } catch (error: any) {
+        Alert.alert("Error", "Could not load assignments");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAssignments();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#1a3a6b" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.tabContent}>
       <Text style={styles.tabTitle}>Homework</Text>
-      {[
-        {
-          icon: "📐",
-          subject: "Physics",
-          title: "Wave mechanics problems",
-          teacher: "Mr. Sharma",
-          due: "Today",
-          badgeStyle: "urgent",
-        },
-        {
-          icon: "📝",
-          subject: "English",
-          title: "Persuasive essay draft",
-          teacher: "Ms. Chen",
-          due: "Mar 18",
-          badgeStyle: "mid",
-        },
-        {
-          icon: "🧪",
-          subject: "Chemistry",
-          title: "Titration lab report",
-          teacher: "Dr. Okonkwo",
-          due: "Mar 22",
-          badgeStyle: "ok",
-        },
-        {
-          icon: "➗",
-          subject: "Mathematics",
-          title: "Calculus problem set",
-          teacher: "Mr. Singh",
-          due: "Mar 24",
-          badgeStyle: "ok",
-        },
-      ].map((hw, i) => (
-        <View key={i} style={styles.hwCard}>
-          <View style={styles.hwCardTop}>
-            <Text style={styles.hwCardIcon}>{hw.icon}</Text>
-            <View style={styles.hwCardInfo}>
-              <Text style={styles.hwCardSubject}>{hw.subject}</Text>
-              <Text style={styles.hwCardTitle}>{hw.title}</Text>
-              <Text style={styles.hwCardTeacher}>{hw.teacher}</Text>
+      {assignments.length === 0 ? (
+        <Text style={styles.emptyText}>No assignments yet.</Text>
+      ) : (
+        assignments.map((a, i) => (
+          <View key={i} style={styles.hwCard}>
+            <View style={styles.hwCardTop}>
+              <Text style={styles.hwCardIcon}>📝</Text>
+              <View style={styles.hwCardInfo}>
+                <Text style={styles.hwCardSubject}>{a.subject}</Text>
+                <Text style={styles.hwCardTitle}>{a.title}</Text>
+                <Text style={styles.hwCardTeacher}>{a.class}</Text>
+              </View>
+              <Text style={styles.badgeOk}>
+                {new Date(a.dueDate).toDateString()}
+              </Text>
             </View>
-            <Text
-              style={
-                hw.badgeStyle === "urgent"
-                  ? styles.badgeUrgent
-                  : hw.badgeStyle === "mid"
-                    ? styles.badgeMid
-                    : styles.badgeOk
-              }
-            >
-              {hw.due}
-            </Text>
+            <TouchableOpacity style={styles.submitBtn}>
+              <Text style={styles.submitBtnText}>View & Submit</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.submitBtn}>
-            <Text style={styles.submitBtnText}>View & Submit</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
+        ))
+      )}
     </View>
   );
 }
@@ -287,6 +338,33 @@ function CalendarTab() {
 }
 
 function GradesTab() {
+  const [attendance, setAttendance] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const headers = await getAuthHeader();
+        const profileRes = await axios.get(
+          `${API_URL}/api/students/me/profile`,
+          { headers },
+        );
+        if (profileRes.data?.id) {
+          const attRes = await axios.get(
+            `${API_URL}/api/attendance/student/${profileRes.data.id}`,
+            { headers },
+          );
+          setAttendance(attRes.data);
+        }
+      } catch (error: any) {
+        console.log("Error loading grades:", error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
   const subjects = [
     {
       icon: "➗",
@@ -330,13 +408,26 @@ function GradesTab() {
     },
   ];
 
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#1a3a6b" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.tabContent}>
-      {/* Overall score card */}
       <View style={styles.gradeHeader}>
         <Text style={styles.gradeScore}>98.2%</Text>
         <Text style={styles.gradeGrade}>A+</Text>
         <Text style={styles.gradeRank}>Rank 1 of 42 · Top of class</Text>
+        <Text style={styles.gradeAttendance}>
+          Attendance:{" "}
+          {attendance.length > 0
+            ? `${Math.round((attendance.filter((a) => a.status === "P").length / attendance.length) * 100)}%`
+            : "N/A"}
+        </Text>
       </View>
 
       <Text style={styles.tabTitle}>Subject Breakdown</Text>
@@ -368,58 +459,57 @@ function GradesTab() {
 }
 
 function ChatTab() {
-  const chats = [
-    {
-      initials: "SS",
-      name: "Mr. Sharma (Physics)",
-      preview: "Please submit your wave problems by tonight",
-      time: "9:14 AM",
-      unread: true,
-      bg: "#e6f1fb",
-      fg: "#185fa5",
-    },
-    {
-      initials: "MC",
-      name: "Ms. Chen (English)",
-      preview: "Great essay draft, a few suggestions...",
-      time: "Yesterday",
-      unread: false,
-      bg: "#eaf3de",
-      fg: "#3b6d11",
-    },
-    {
-      initials: "DO",
-      name: "Dr. Okonkwo (Chemistry)",
-      preview: "Lab report format reminder attached",
-      time: "Mar 14",
-      unread: false,
-      bg: "#faeeda",
-      fg: "#854f0b",
-    },
-  ];
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadMessages = async () => {
+      try {
+        const headers = await getAuthHeader();
+        const res = await axios.get(`${API_URL}/api/messages`, { headers });
+        setMessages(res.data);
+      } catch (error: any) {
+        console.log("Error loading messages:", error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadMessages();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#1a3a6b" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.tabContent}>
       <Text style={styles.tabTitle}>Messages</Text>
-      {chats.map((chat, i) => (
-        <TouchableOpacity key={i} style={styles.chatItem}>
-          <View style={[styles.chatAvatar, { backgroundColor: chat.bg }]}>
-            <Text style={[styles.chatAvatarText, { color: chat.fg }]}>
-              {chat.initials}
+      {messages.length === 0 ? (
+        <Text style={styles.emptyText}>No messages yet.</Text>
+      ) : (
+        messages.map((m, i) => (
+          <TouchableOpacity key={i} style={styles.chatItem}>
+            <View style={[styles.chatAvatar, { backgroundColor: "#e6f1fb" }]}>
+              <Text style={[styles.chatAvatarText, { color: "#185fa5" }]}>
+                {m.sender.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.chatInfo}>
+              <Text style={styles.chatName}>{m.sender.name}</Text>
+              <Text style={styles.chatPreview} numberOfLines={1}>
+                {m.content}
+              </Text>
+            </View>
+            <Text style={styles.chatTime}>
+              {new Date(m.createdAt).toLocaleDateString()}
             </Text>
-          </View>
-          <View style={styles.chatInfo}>
-            <Text style={styles.chatName}>{chat.name}</Text>
-            <Text style={styles.chatPreview} numberOfLines={1}>
-              {chat.preview}
-            </Text>
-          </View>
-          <View style={styles.chatMeta}>
-            <Text style={styles.chatTime}>{chat.time}</Text>
-            {chat.unread && <View style={styles.unreadDot} />}
-          </View>
-        </TouchableOpacity>
-      ))}
+          </TouchableOpacity>
+        ))
+      )}
     </View>
   );
 }
@@ -427,6 +517,19 @@ function ChatTab() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f6fa" },
   content: { flex: 1 },
+  loadingBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+  },
+  loadingText: { marginTop: 12, fontSize: 13, color: "#999" },
+  emptyText: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 13,
+    marginTop: 20,
+  },
   header: {
     backgroundColor: "#1a3a6b",
     padding: 24,
@@ -477,22 +580,6 @@ const styles = StyleSheet.create({
   hwInfo: { flex: 1 },
   hwTitle: { fontSize: 12, fontWeight: "600", color: "#333" },
   hwSub: { fontSize: 11, color: "#999", marginTop: 2 },
-  badgeUrgent: {
-    fontSize: 10,
-    backgroundColor: "#fcebeb",
-    color: "#a32d2d",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  badgeMid: {
-    fontSize: 10,
-    backgroundColor: "#faeeda",
-    color: "#854f0b",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
   badgeOk: {
     fontSize: 10,
     backgroundColor: "#eaf3de",
@@ -592,13 +679,17 @@ const styles = StyleSheet.create({
   evDate: { fontSize: 11, color: "#999", marginTop: 2 },
   gradeHeader: {
     backgroundColor: "#1a3a6b",
-    margin: 0,
     padding: 24,
     alignItems: "center",
   },
   gradeScore: { fontSize: 48, fontWeight: "bold", color: "#fff" },
   gradeGrade: { fontSize: 24, color: "rgba(255,255,255,0.8)", marginTop: 4 },
   gradeRank: { fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 6 },
+  gradeAttendance: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.6)",
+    marginTop: 4,
+  },
   subjectRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -647,12 +738,5 @@ const styles = StyleSheet.create({
   chatInfo: { flex: 1 },
   chatName: { fontSize: 13, fontWeight: "600", color: "#333" },
   chatPreview: { fontSize: 11, color: "#999", marginTop: 2 },
-  chatMeta: { alignItems: "flex-end", gap: 4 },
   chatTime: { fontSize: 10, color: "#999" },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#3266ad",
-  },
 });

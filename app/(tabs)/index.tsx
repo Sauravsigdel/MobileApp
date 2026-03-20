@@ -4,17 +4,56 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useState } from "react";
 import { useRouter } from "expo-router";
+import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { API_URL } from "../../config";
 
 export default function Index() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("student");
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const roles = ["student", "teacher", "accountant", "admin"];
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Please enter your email and password");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API_URL}/api/auth/login`, {
+        email,
+        password,
+      });
+
+      const { token, user } = response.data;
+
+      await AsyncStorage.setItem("token", token);
+      await AsyncStorage.setItem("user", JSON.stringify(user));
+
+      if (user.role === "student") router.push("/student/dashboard" as any);
+      else if (user.role === "teacher")
+        router.push("/teacher/dashboard" as any);
+      else if (user.role === "accountant")
+        router.push("/accountant/dashboard" as any);
+      else if (user.role === "admin") router.push("/admin/dashboard" as any);
+      else Alert.alert("Error", "Unknown role: " + user.role);
+    } catch (error: any) {
+      Alert.alert(
+        "Login Failed",
+        error.response?.data?.message ||
+          "Something went wrong. Check your connection.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -30,27 +69,6 @@ export default function Index() {
       {/* Card */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Sign in</Text>
-
-        {/* Role selector */}
-        <Text style={styles.label}>Login as</Text>
-        <View style={styles.roleRow}>
-          {roles.map((r) => (
-            <TouchableOpacity
-              key={r}
-              style={[styles.rolePill, role === r && styles.rolePillActive]}
-              onPress={() => setRole(r)}
-            >
-              <Text
-                style={[
-                  styles.rolePillText,
-                  role === r && styles.rolePillTextActive,
-                ]}
-              >
-                {r.charAt(0).toUpperCase() + r.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
 
         {/* Email */}
         <Text style={styles.label}>Email</Text>
@@ -77,17 +95,15 @@ export default function Index() {
 
         {/* Login button */}
         <TouchableOpacity
-          style={styles.loginBtn}
-          onPress={() => {
-            if (role === "student") router.push("/student/dashboard" as any);
-            else if (role === "teacher")
-              router.push("/teacher/dashboard" as any);
-            else if (role === "accountant")
-              router.push("/accountant/dashboard" as any);
-            else if (role === "admin") router.push("/admin/dashboard" as any);
-          }}
+          style={[styles.loginBtn, loading && styles.loginBtnDisabled]}
+          onPress={handleLogin}
+          disabled={loading}
         >
-          <Text style={styles.loginBtnText}>Sign in</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.loginBtnText}>Sign in</Text>
+          )}
         </TouchableOpacity>
 
         <Text style={styles.forgotText}>Forgot password?</Text>
@@ -151,31 +167,6 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     marginTop: 14,
   },
-  roleRow: {
-    flexDirection: "row",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  rolePill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    backgroundColor: "#f5f5f5",
-  },
-  rolePillActive: {
-    backgroundColor: "#1a3a6b",
-    borderColor: "#1a3a6b",
-  },
-  rolePillText: {
-    fontSize: 12,
-    color: "#666",
-  },
-  rolePillTextActive: {
-    color: "#ffffff",
-    fontWeight: "600",
-  },
   input: {
     borderWidth: 1,
     borderColor: "#e0e0e0",
@@ -191,6 +182,9 @@ const styles = StyleSheet.create({
     padding: 14,
     alignItems: "center",
     marginTop: 24,
+  },
+  loginBtnDisabled: {
+    backgroundColor: "#7a9abf",
   },
   loginBtnText: {
     color: "#ffffff",

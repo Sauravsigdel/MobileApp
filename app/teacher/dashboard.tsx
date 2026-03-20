@@ -4,8 +4,18 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { API_URL } from "../../config";
+
+const getAuthHeader = async () => {
+  const token = await AsyncStorage.getItem("token");
+  return { Authorization: `Bearer ${token}` };
+};
 
 export default function TeacherDashboard() {
   const [activeTab, setActiveTab] = useState("home");
@@ -51,16 +61,54 @@ export default function TeacherDashboard() {
 }
 
 function HomeTab() {
+  const [teacherName, setTeacherName] = useState("");
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const headers = await getAuthHeader();
+
+        // Get teacher info
+        const meRes = await axios.get(`${API_URL}/api/auth/me`, { headers });
+        setTeacherName(meRes.data.name);
+
+        // Get assignments
+        const assignRes = await axios.get(`${API_URL}/api/assignments`, {
+          headers,
+        });
+        setAssignments(assignRes.data.slice(0, 2));
+      } catch (error: any) {
+        console.log("Error loading teacher data:", error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#1a3a6b" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <View>
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Good morning,</Text>
-          <Text style={styles.name}>Mr. Sharma</Text>
+          <Text style={styles.name}>{teacherName || "Teacher"}</Text>
           <Text style={styles.badge}>Physics Teacher · Grade 10-A</Text>
         </View>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>SS</Text>
+          <Text style={styles.avatarText}>
+            {teacherName ? teacherName.charAt(0).toUpperCase() : "T"}
+          </Text>
         </View>
       </View>
 
@@ -74,8 +122,8 @@ function HomeTab() {
           <Text style={styles.cardLabel}>Attendance</Text>
         </View>
         <View style={[styles.card, { backgroundColor: "#faeeda" }]}>
-          <Text style={styles.cardVal}>5</Text>
-          <Text style={styles.cardLabel}>Pending</Text>
+          <Text style={styles.cardVal}>{assignments.length}</Text>
+          <Text style={styles.cardLabel}>Assignments</Text>
         </View>
       </View>
 
@@ -149,103 +197,50 @@ function HomeTab() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Pending Submissions</Text>
-        {[
-          {
-            subject: "Wave mechanics problems",
-            class: "Grade 10-A",
-            submitted: 28,
-            total: 42,
-          },
-          {
-            subject: "Optics worksheet",
-            class: "Grade 11-B",
-            submitted: 35,
-            total: 38,
-          },
-        ].map((item, i) => (
-          <View key={i} style={styles.submItem}>
-            <View style={styles.submInfo}>
-              <Text style={styles.submTitle}>{item.subject}</Text>
-              <Text style={styles.submSub}>
-                {item.class} · {item.submitted} of {item.total} submitted
-              </Text>
+        <Text style={styles.sectionTitle}>Recent Assignments</Text>
+        {assignments.length === 0 ? (
+          <Text style={styles.emptyText}>No assignments yet.</Text>
+        ) : (
+          assignments.map((a, i) => (
+            <View key={i} style={styles.submItem}>
+              <View style={styles.submInfo}>
+                <Text style={styles.submTitle}>{a.title}</Text>
+                <Text style={styles.submSub}>
+                  {a.class} · Due {new Date(a.dueDate).toDateString()}
+                </Text>
+              </View>
             </View>
-            <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${(item.submitted / item.total) * 100}%` },
-                ]}
-              />
-            </View>
-          </View>
-        ))}
+          ))
+        )}
       </View>
     </View>
   );
 }
 
 function AttendanceTab() {
-  const [attendance, setAttendance] = useState<Record<string, string>>({
-    "1": "P",
-    "2": "P",
-    "3": "L",
-    "4": "A",
-    "5": "P",
-    "6": "P",
-  });
+  const [attendance, setAttendance] = useState<Record<string, string>>({});
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const students = [
-    {
-      id: "1",
-      name: "Aisha Kumar",
-      roll: "14",
-      bg: "#e6f1fb",
-      fg: "#185fa5",
-      initials: "AK",
-    },
-    {
-      id: "2",
-      name: "Liam Torres",
-      roll: "22",
-      bg: "#eaf3de",
-      fg: "#3b6d11",
-      initials: "LT",
-    },
-    {
-      id: "3",
-      name: "Maya Wong",
-      roll: "08",
-      bg: "#faeeda",
-      fg: "#854f0b",
-      initials: "MW",
-    },
-    {
-      id: "4",
-      name: "Rohan Patel",
-      roll: "31",
-      bg: "#faece7",
-      fg: "#993c1d",
-      initials: "RP",
-    },
-    {
-      id: "5",
-      name: "Sara Nguyen",
-      roll: "05",
-      bg: "#e1f5ee",
-      fg: "#0f6e56",
-      initials: "SN",
-    },
-    {
-      id: "6",
-      name: "James Miller",
-      roll: "17",
-      bg: "#eeedfe",
-      fg: "#534ab7",
-      initials: "JM",
-    },
-  ];
+  useEffect(() => {
+    const loadStudents = async () => {
+      try {
+        const headers = await getAuthHeader();
+        const res = await axios.get(`${API_URL}/api/students`, { headers });
+        setStudents(res.data);
+        // Default all to Present
+        const defaults: Record<string, string> = {};
+        res.data.forEach((s: any) => (defaults[s.id] = "P"));
+        setAttendance(defaults);
+      } catch (error: any) {
+        Alert.alert("Error", "Could not load students");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadStudents();
+  }, []);
 
   const mark = (id: string, status: string) => {
     setAttendance((prev) => ({
@@ -254,16 +249,56 @@ function AttendanceTab() {
     }));
   };
 
+  const saveAttendance = async () => {
+    setSaving(true);
+    try {
+      const headers = await getAuthHeader();
+      const user = JSON.parse((await AsyncStorage.getItem("user")) || "{}");
+
+      // Get teacher profile
+      const teacherRes = await axios.get(`${API_URL}/api/students`, {
+        headers,
+      });
+
+      for (const studentId of Object.keys(attendance)) {
+        await axios.post(
+          `${API_URL}/api/attendance`,
+          {
+            studentId: Number(studentId),
+            teacherId: 1,
+            date: new Date().toISOString(),
+            status: attendance[studentId] || "A",
+            subject: "Physics",
+          },
+          { headers },
+        );
+      }
+      Alert.alert("Success", "Attendance saved!");
+    } catch (error: any) {
+      Alert.alert("Error", "Could not save attendance");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const counts = {
     P: Object.values(attendance).filter((v) => v === "P").length,
     A: Object.values(attendance).filter((v) => v === "A").length,
     L: Object.values(attendance).filter((v) => v === "L").length,
   };
 
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#1a3a6b" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.tabContent}>
-      <Text style={styles.tabTitle}>Attendance — Grade 10-A</Text>
-      <Text style={styles.tabSubtitle}>Monday, March 16, 2026 · Physics</Text>
+      <Text style={styles.tabTitle}>Attendance</Text>
+      <Text style={styles.tabSubtitle}>Today · Physics</Text>
 
       <View style={styles.attSummary}>
         <View style={[styles.attStat, { backgroundColor: "#eaf3de" }]}>
@@ -299,14 +334,14 @@ function AttendanceTab() {
 
       {students.map((s) => (
         <View key={s.id} style={styles.studentRow}>
-          <View style={[styles.studentAvatar, { backgroundColor: s.bg }]}>
-            <Text style={[styles.studentInitials, { color: s.fg }]}>
-              {s.initials}
+          <View style={[styles.studentAvatar, { backgroundColor: "#e6f1fb" }]}>
+            <Text style={[styles.studentInitials, { color: "#185fa5" }]}>
+              {s.user.name.charAt(0).toUpperCase()}
             </Text>
           </View>
           <View style={styles.studentInfo}>
-            <Text style={styles.studentName}>{s.name}</Text>
-            <Text style={styles.studentRoll}>Roll {s.roll}</Text>
+            <Text style={styles.studentName}>{s.user.name}</Text>
+            <Text style={styles.studentRoll}>Roll {s.rollNo}</Text>
           </View>
           <View style={styles.attBtns}>
             {["P", "A", "L"].map((status) => (
@@ -337,63 +372,67 @@ function AttendanceTab() {
         </View>
       ))}
 
-      <TouchableOpacity style={styles.saveBtn}>
-        <Text style={styles.saveBtnText}>Save Attendance</Text>
+      <TouchableOpacity
+        style={styles.saveBtn}
+        onPress={saveAttendance}
+        disabled={saving}
+      >
+        {saving ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.saveBtnText}>Save Attendance</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
 }
 
 function AssignmentsTab() {
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadAssignments = async () => {
+      try {
+        const headers = await getAuthHeader();
+        const res = await axios.get(`${API_URL}/api/assignments`, { headers });
+        setAssignments(res.data);
+      } catch (error: any) {
+        Alert.alert("Error", "Could not load assignments");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAssignments();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#1a3a6b" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.tabContent}>
       <Text style={styles.tabTitle}>Assignments</Text>
-      {[
-        {
-          subject: "Grade 10-A",
-          title: "Wave mechanics problems",
-          due: "Today",
-          submitted: 28,
-          total: 42,
-        },
-        {
-          subject: "Grade 11-B",
-          title: "Optics worksheet",
-          due: "Mar 18",
-          submitted: 35,
-          total: 38,
-        },
-        {
-          subject: "Grade 9-C",
-          title: "Newton's laws quiz",
-          due: "Mar 20",
-          submitted: 10,
-          total: 40,
-        },
-      ].map((item, i) => (
-        <View key={i} style={styles.assignCard}>
-          <View style={styles.assignTop}>
-            <Text style={styles.assignClass}>{item.subject}</Text>
-            <Text style={styles.badgeMid}>{item.due}</Text>
+      {assignments.length === 0 ? (
+        <Text style={styles.emptyText}>No assignments yet.</Text>
+      ) : (
+        assignments.map((a, i) => (
+          <View key={i} style={styles.assignCard}>
+            <View style={styles.assignTop}>
+              <Text style={styles.assignClass}>{a.class}</Text>
+              <Text style={styles.badgeMid}>
+                {new Date(a.dueDate).toDateString()}
+              </Text>
+            </View>
+            <Text style={styles.assignTitle}>{a.title}</Text>
+            <Text style={styles.assignSub}>{a.subject}</Text>
           </View>
-          <Text style={styles.assignTitle}>{item.title}</Text>
-          <Text style={styles.assignSub}>
-            {item.submitted} of {item.total} submitted
-          </Text>
-          <View style={styles.progressBar}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${(item.submitted / item.total) * 100}%` },
-              ]}
-            />
-          </View>
-          <TouchableOpacity style={styles.gradeBtn}>
-            <Text style={styles.gradeBtnText}>View Submissions</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
-
+        ))
+      )}
       <TouchableOpacity style={styles.saveBtn}>
         <Text style={styles.saveBtnText}>+ New Assignment</Text>
       </TouchableOpacity>
@@ -505,56 +544,57 @@ function GradesTab() {
 }
 
 function ChatTab() {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadMessages = async () => {
+      try {
+        const headers = await getAuthHeader();
+        const res = await axios.get(`${API_URL}/api/messages`, { headers });
+        setMessages(res.data);
+      } catch (error: any) {
+        console.log("Error loading messages:", error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadMessages();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#1a3a6b" />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.tabContent}>
       <Text style={styles.tabTitle}>Messages</Text>
-      {[
-        {
-          initials: "AK",
-          name: "Aisha Kumar",
-          preview: "Sir I am stuck on question 6...",
-          time: "9:44 AM",
-          unread: true,
-          bg: "#e6f1fb",
-          fg: "#185fa5",
-        },
-        {
-          initials: "RP",
-          name: "Rohan Patel",
-          preview: "Can I submit tomorrow?",
-          time: "Yesterday",
-          unread: true,
-          bg: "#faece7",
-          fg: "#993c1d",
-        },
-        {
-          initials: "AD",
-          name: "Admin",
-          preview: "Staff meeting at 3 PM today",
-          time: "Mar 15",
-          unread: false,
-          bg: "#eeedfe",
-          fg: "#534ab7",
-        },
-      ].map((chat, i) => (
-        <TouchableOpacity key={i} style={styles.chatItem}>
-          <View style={[styles.chatAvatar, { backgroundColor: chat.bg }]}>
-            <Text style={[styles.chatAvatarText, { color: chat.fg }]}>
-              {chat.initials}
+      {messages.length === 0 ? (
+        <Text style={styles.emptyText}>No messages yet.</Text>
+      ) : (
+        messages.map((m, i) => (
+          <TouchableOpacity key={i} style={styles.chatItem}>
+            <View style={[styles.chatAvatar, { backgroundColor: "#e6f1fb" }]}>
+              <Text style={[styles.chatAvatarText, { color: "#185fa5" }]}>
+                {m.sender.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.chatInfo}>
+              <Text style={styles.chatName}>{m.sender.name}</Text>
+              <Text style={styles.chatPreview} numberOfLines={1}>
+                {m.content}
+              </Text>
+            </View>
+            <Text style={styles.chatTime}>
+              {new Date(m.createdAt).toLocaleDateString()}
             </Text>
-          </View>
-          <View style={styles.chatInfo}>
-            <Text style={styles.chatName}>{chat.name}</Text>
-            <Text style={styles.chatPreview} numberOfLines={1}>
-              {chat.preview}
-            </Text>
-          </View>
-          <View style={styles.chatMeta}>
-            <Text style={styles.chatTime}>{chat.time}</Text>
-            {chat.unread && <View style={styles.unreadDot} />}
-          </View>
-        </TouchableOpacity>
-      ))}
+          </TouchableOpacity>
+        ))
+      )}
     </View>
   );
 }
@@ -562,6 +602,19 @@ function ChatTab() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f6fa" },
   content: { flex: 1 },
+  loadingBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+  },
+  loadingText: { marginTop: 12, fontSize: 13, color: "#999" },
+  emptyText: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 13,
+    marginTop: 20,
+  },
   header: {
     backgroundColor: "#1a3a6b",
     padding: 24,
@@ -751,15 +804,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   assignSub: { fontSize: 11, color: "#999", marginBottom: 6 },
-  gradeBtn: {
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: "#1a3a6b",
-    borderRadius: 8,
-    padding: 8,
-    alignItems: "center",
-  },
-  gradeBtnText: { color: "#1a3a6b", fontSize: 12, fontWeight: "600" },
   gradeRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -802,7 +846,6 @@ const styles = StyleSheet.create({
   chatInfo: { flex: 1 },
   chatName: { fontSize: 13, fontWeight: "600", color: "#333" },
   chatPreview: { fontSize: 11, color: "#999", marginTop: 2 },
-  chatMeta: { alignItems: "flex-end", gap: 4 },
   chatTime: { fontSize: 10, color: "#999" },
   unreadDot: {
     width: 8,

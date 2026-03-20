@@ -5,9 +5,20 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
+import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { API_URL } from "../../config";
+
+// Helper to get auth header
+const getAuthHeader = async () => {
+  const token = await AsyncStorage.getItem("token");
+  return { Authorization: `Bearer ${token}` };
+};
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("home");
@@ -54,24 +65,76 @@ export default function AdminDashboard() {
 }
 
 function HomeTab() {
+  const [studentCount, setStudentCount] = useState(0);
+  const [teacherCount, setTeacherCount] = useState(0);
+  const [adminName, setAdminName] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const headers = await getAuthHeader();
+
+        // Get admin info
+        const meRes = await axios.get(`${API_URL}/api/auth/me`, { headers });
+        setAdminName(meRes.data.name);
+
+        // Get students
+        const studentsRes = await axios.get(`${API_URL}/api/students`, {
+          headers,
+        });
+        setStudentCount(studentsRes.data.length);
+
+        // Get teachers
+        // We'll count users with role teacher for now
+        setTeacherCount(0);
+      } catch (error: any) {
+        console.log("Error loading admin data:", error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#1a3a6b" />
+        <Text style={styles.loadingText}>Loading dashboard...</Text>
+      </View>
+    );
+  }
+
   return (
     <View>
       <View style={styles.header}>
         <View>
           <Text style={styles.greeting}>Good morning,</Text>
-          <Text style={styles.name}>Administrator</Text>
+          <Text style={styles.name}>{adminName || "Administrator"}</Text>
           <Text style={styles.badge}>Spring Term 2026</Text>
         </View>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>AD</Text>
+          <Text style={styles.avatarText}>
+            {adminName ? adminName.charAt(0).toUpperCase() : "A"}
+          </Text>
         </View>
       </View>
 
-      {/* 4 metric cards */}
       <View style={styles.metricsGrid}>
         {[
-          { val: "1,248", label: "Students", bg: "#e6f1fb", color: "#185fa5" },
-          { val: "86", label: "Teachers", bg: "#eaf3de", color: "#3b6d11" },
+          {
+            val: studentCount.toString(),
+            label: "Students",
+            bg: "#e6f1fb",
+            color: "#185fa5",
+          },
+          {
+            val: teacherCount.toString(),
+            label: "Teachers",
+            bg: "#eaf3de",
+            color: "#3b6d11",
+          },
           {
             val: "91.4%",
             label: "Attendance",
@@ -87,7 +150,6 @@ function HomeTab() {
         ))}
       </View>
 
-      {/* Fee collection progress */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Fee Collection Progress</Text>
         <View style={styles.progressCard}>
@@ -102,7 +164,6 @@ function HomeTab() {
         </View>
       </View>
 
-      {/* Upcoming events */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Upcoming Events</Text>
         {[
@@ -147,118 +208,43 @@ function HomeTab() {
           </View>
         ))}
       </View>
-
-      {/* Top students */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Top Performing Students</Text>
-        {[
-          {
-            initials: "AK",
-            name: "Aisha Kumar",
-            class: "Grade 10-A",
-            score: "98.2%",
-            bg: "#e6f1fb",
-            fg: "#185fa5",
-          },
-          {
-            initials: "LT",
-            name: "Liam Torres",
-            class: "Grade 11-B",
-            score: "97.5%",
-            bg: "#eaf3de",
-            fg: "#3b6d11",
-          },
-          {
-            initials: "MW",
-            name: "Maya Wong",
-            class: "Grade 9-C",
-            score: "96.8%",
-            bg: "#faeeda",
-            fg: "#854f0b",
-          },
-        ].map((s, i) => (
-          <View key={i} style={styles.studentRow}>
-            <View style={[styles.studentAvatar, { backgroundColor: s.bg }]}>
-              <Text style={[styles.studentInitials, { color: s.fg }]}>
-                {s.initials}
-              </Text>
-            </View>
-            <View style={styles.studentInfo}>
-              <Text style={styles.studentName}>{s.name}</Text>
-              <Text style={styles.studentClass}>{s.class}</Text>
-            </View>
-            <Text style={styles.studentScore}>{s.score}</Text>
-          </View>
-        ))}
-      </View>
     </View>
   );
 }
 
 function StudentsTab() {
   const [search, setSearch] = useState("");
-  const allStudents = [
-    {
-      initials: "AK",
-      name: "Aisha Kumar",
-      class: "Grade 10-A",
-      roll: "14",
-      status: "active",
-      bg: "#e6f1fb",
-      fg: "#185fa5",
-    },
-    {
-      initials: "LT",
-      name: "Liam Torres",
-      class: "Grade 11-B",
-      roll: "22",
-      status: "active",
-      bg: "#eaf3de",
-      fg: "#3b6d11",
-    },
-    {
-      initials: "MW",
-      name: "Maya Wong",
-      class: "Grade 9-C",
-      roll: "08",
-      status: "active",
-      bg: "#faeeda",
-      fg: "#854f0b",
-    },
-    {
-      initials: "RP",
-      name: "Rohan Patel",
-      class: "Grade 10-B",
-      roll: "31",
-      status: "inactive",
-      bg: "#faece7",
-      fg: "#993c1d",
-    },
-    {
-      initials: "SN",
-      name: "Sara Nguyen",
-      class: "Grade 9-C",
-      roll: "05",
-      status: "active",
-      bg: "#e1f5ee",
-      fg: "#0f6e56",
-    },
-    {
-      initials: "JM",
-      name: "James Miller",
-      class: "Grade 10-A",
-      roll: "17",
-      status: "active",
-      bg: "#eeedfe",
-      fg: "#534ab7",
-    },
-  ];
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = allStudents.filter(
+  useEffect(() => {
+    const loadStudents = async () => {
+      try {
+        const headers = await getAuthHeader();
+        const res = await axios.get(`${API_URL}/api/students`, { headers });
+        setStudents(res.data);
+      } catch (error: any) {
+        Alert.alert("Error", "Could not load students");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadStudents();
+  }, []);
+
+  const filtered = students.filter(
     (s) =>
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
+      s.user.name.toLowerCase().includes(search.toLowerCase()) ||
       s.class.toLowerCase().includes(search.toLowerCase()),
   );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="large" color="#1a3a6b" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.tabContent}>
@@ -271,28 +257,28 @@ function StudentsTab() {
         onChangeText={setSearch}
       />
       <Text style={styles.resultCount}>{filtered.length} students found</Text>
-      {filtered.map((s, i) => (
-        <View key={i} style={styles.studentRow}>
-          <View style={[styles.studentAvatar, { backgroundColor: s.bg }]}>
-            <Text style={[styles.studentInitials, { color: s.fg }]}>
-              {s.initials}
-            </Text>
+      {filtered.length === 0 ? (
+        <Text style={styles.emptyText}>No students registered yet.</Text>
+      ) : (
+        filtered.map((s, i) => (
+          <View key={i} style={styles.studentRow}>
+            <View
+              style={[styles.studentAvatar, { backgroundColor: "#e6f1fb" }]}
+            >
+              <Text style={[styles.studentInitials, { color: "#185fa5" }]}>
+                {s.user.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.studentInfo}>
+              <Text style={styles.studentName}>{s.user.name}</Text>
+              <Text style={styles.studentClass}>
+                {s.class} · Roll {s.rollNo}
+              </Text>
+            </View>
+            <Text style={styles.badgeActive}>Active</Text>
           </View>
-          <View style={styles.studentInfo}>
-            <Text style={styles.studentName}>{s.name}</Text>
-            <Text style={styles.studentClass}>
-              {s.class} · Roll {s.roll}
-            </Text>
-          </View>
-          <Text
-            style={
-              s.status === "active" ? styles.badgeActive : styles.badgeInactive
-            }
-          >
-            {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
-          </Text>
-        </View>
-      ))}
+        ))
+      )}
       <TouchableOpacity style={styles.addBtn}>
         <Text style={styles.addBtnText}>+ Add New Student</Text>
       </TouchableOpacity>
@@ -378,7 +364,6 @@ function EventsTab() {
   return (
     <View style={styles.tabContent}>
       <Text style={styles.tabTitle}>School Events</Text>
-
       {[
         {
           title: "Mid-term examinations",
@@ -493,6 +478,12 @@ function EventsTab() {
 }
 
 function SettingsTab({ router }: { router: any }) {
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem("token");
+    await AsyncStorage.removeItem("user");
+    router.replace("/" as any);
+  };
+
   return (
     <View style={styles.tabContent}>
       <Text style={styles.tabTitle}>Settings</Text>
@@ -537,10 +528,7 @@ function SettingsTab({ router }: { router: any }) {
         </TouchableOpacity>
       ))}
 
-      <TouchableOpacity
-        style={styles.logoutBtn}
-        onPress={() => router.replace("/" as any)}
-      >
+      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
         <Text style={styles.logoutBtnText}>Log Out</Text>
       </TouchableOpacity>
     </View>
@@ -550,6 +538,19 @@ function SettingsTab({ router }: { router: any }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#f5f6fa" },
   content: { flex: 1 },
+  loadingBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+  },
+  loadingText: { marginTop: 12, fontSize: 13, color: "#999" },
+  emptyText: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 13,
+    marginTop: 20,
+  },
   header: {
     backgroundColor: "#1a3a6b",
     padding: 24,
@@ -667,7 +668,6 @@ const styles = StyleSheet.create({
   studentInfo: { flex: 1 },
   studentName: { fontSize: 13, fontWeight: "600", color: "#333" },
   studentClass: { fontSize: 11, color: "#999", marginTop: 1 },
-  studentScore: { fontSize: 14, fontWeight: "bold", color: "#3b6d11" },
   bottomNav: {
     flexDirection: "row",
     backgroundColor: "#fff",

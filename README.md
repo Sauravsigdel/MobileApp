@@ -1,50 +1,92 @@
-# Welcome to your Expo app 👋
+# SchoolOS
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+SchoolOS has:
 
-## Get started
+- Frontend: Expo React Native app in the project root
+- Backend: Node.js + Express + Prisma API in schoolos-backend
 
-1. Install dependencies
+## Run the Project (Manual)
 
-   ```bash
-   npm install
-   ```
+Open two terminals from this folder:
 
-2. Start the app
+- C:\Users\saura\OneDrive\Desktop\MobileApp
 
-   ```bash
-   npx expo start
-   ```
+1. Start backend
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```powershell
+npm --prefix ".\SchoolOS\schoolos-backend" run dev
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+2. Start frontend
 
-## Learn more
+```powershell
+npm --prefix ".\SchoolOS" run start
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+Optional frontend targets:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```powershell
+npm --prefix ".\SchoolOS" run web
+npm --prefix ".\SchoolOS" run android
+```
 
-## Join the community
+## If There Is a Conflict (Windows)
 
-Join our community of developers creating universal apps.
+### 1) Port conflict (8081, 8082, 3000)
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Check who is using a port:
+
+```powershell
+Get-NetTCPConnection -State Listen -LocalPort 8081,8082,3000 | Select-Object LocalAddress,LocalPort,OwningProcess
+```
+
+Stop a specific process id:
+
+```powershell
+Stop-Process -Id <PID> -Force
+```
+
+Or stop all Node processes (quick reset):
+
+```powershell
+Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+```
+
+Then start services again with the run commands above.
+
+### 2) Prisma EPERM rename / backend startup lock
+
+If backend shows EPERM for query_engine-windows.dll.node:
+
+```powershell
+Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+npm --prefix ".\SchoolOS\schoolos-backend" run dev
+```
+
+### 3) Table does not exist (Prisma database schema missing)
+
+If backend says table public.User does not exist:
+
+```powershell
+npm --prefix ".\SchoolOS\schoolos-backend" exec prisma db push
+```
+
+Then restart backend:
+
+```powershell
+npm --prefix ".\SchoolOS\schoolos-backend" run dev
+```
+
+## Quick Health Checks
+
+Backend health:
+
+```powershell
+Invoke-WebRequest -UseBasicParsing http://localhost:3000/ | Select-Object -ExpandProperty Content
+```
+
+Check frontend port:
+
+```powershell
+Get-NetTCPConnection -State Listen -LocalPort 8081,8082 -ErrorAction SilentlyContinue | Select-Object LocalAddress,LocalPort,OwningProcess
+```
