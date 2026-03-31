@@ -3,3 +3,6 @@ node_modules
 .env
 
 /generated/prisma
+
+# Local MongoDB replica-set runtime data (dev only)
+.mongo-rs/

@@ -9,7 +9,8 @@ const prisma = new PrismaClient();
 
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, phone } = req.body;
+    const now = new Date();
 
     // Validate inputs
     if (!name || !email || !password || !role) {
@@ -25,24 +26,30 @@ router.post("/register", async (req, res) => {
 
     const user = await prisma.users.create({
       data: {
+        v: 0,
         name,
         email,
         password: hashedPassword,
         role,
-        phone: "",
+        phone: typeof phone === "string" ? phone : "",
         isActive: true,
+        createdAt: now,
+        updatedAt: now,
       },
     });
 
     if (role === "student") {
       await prisma.students.create({
         data: {
+          v: 0,
           userId: user.id,
           rollNo: "00",
           address: "N/A",
           admissionDate: new Date(),
           parentName: "N/A",
           parentPhone: "N/A",
+          createdAt: now,
+          updatedAt: now,
         },
       });
     }
@@ -50,8 +57,13 @@ router.post("/register", async (req, res) => {
     if (role === "teacher") {
       await prisma.teachers.create({
         data: {
+          v: 0,
           userId: user.id,
           qualification: "N/A",
+          sectionIds: [],
+          subjectIds: [],
+          createdAt: now,
+          updatedAt: now,
         },
       });
     }
