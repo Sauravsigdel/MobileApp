@@ -7,15 +7,6 @@ import { PrismaClient } from "@prisma/client";
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Handle Prisma connection errors
-prisma
-  .$connect()
-  .then(() => console.log("Database connected"))
-  .catch((error) => {
-    console.error("Database connection error:", error);
-    process.exit(1);
-  });
-
 router.post("/register", async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
@@ -25,33 +16,42 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const existingUser = await prisma.users.findUnique({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ message: "Email already exists" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await prisma.user.create({
-      data: { name, email, password: hashedPassword, role },
+    const user = await prisma.users.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        role,
+        phone: "",
+        isActive: true,
+      },
     });
 
     if (role === "student") {
-      await prisma.student.create({
+      await prisma.students.create({
         data: {
           userId: user.id,
           rollNo: "00",
-          class: "Grade 1",
-          section: "A",
+          address: "N/A",
+          admissionDate: new Date(),
+          parentName: "N/A",
+          parentPhone: "N/A",
         },
       });
     }
 
     if (role === "teacher") {
-      await prisma.teacher.create({
+      await prisma.teachers.create({
         data: {
           userId: user.id,
-          subject: "General",
+          qualification: "N/A",
         },
       });
     }
@@ -85,7 +85,7 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Email and password required" });
     }
 
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.users.findUnique({ where: { email } });
     if (!user) {
       return res.status(400).json({ message: "Invalid email or password" });
     }
@@ -118,7 +118,7 @@ router.post("/login", async (req, res) => {
 
 router.get("/me", protect, async (req: AuthRequest, res) => {
   try {
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: { id: req.user.id },
       select: { id: true, name: true, email: true, role: true },
     });

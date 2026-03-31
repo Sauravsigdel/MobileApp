@@ -3,9 +3,14 @@
   "version": "1.0.0",
   "scripts": {
     "prisma:generate": "prisma generate",
-    "dev": "npm run prisma:generate && nodemon --exec ts-node src/index.ts",
+    "dev": "nodemon --exec ts-node src/index.ts",
     "build": "npm run prisma:generate && tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "seed": "ts-node prisma/seed.ts",
+    "db:seed": "npm run seed"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

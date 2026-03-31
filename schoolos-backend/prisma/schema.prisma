@@ -1,102 +1,140 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  password  String
+model assignments {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+}
+
+model attendances {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+}
+
+model classes {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  v         Int      @map("__v")
+  createdAt DateTime @db.Date
+  isActive  Boolean
   name      String
-  role      String   @default("student")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  student          Student?
-  teacher          Teacher?
-  sentMessages     Message[] @relation("SentMessages")
-  receivedMessages Message[] @relation("ReceivedMessages")
+  schoolId  String   @db.ObjectId
+  updatedAt DateTime @db.Date
 }
 
-model Student {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @unique
-  rollNo    String
-  class     String
-  section   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  attendance  Attendance[]
-  feeRecords  FeeRecord[]
+model exams {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 }
 
-model Teacher {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @unique
-  subject   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  attendance  Attendance[]
-  assignments Assignment[]
+model feerecords {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 }
 
-model Attendance {
-  id        Int      @id @default(autoincrement())
-  studentId Int
-  teacherId Int
-  date      DateTime
-  status    String
-  subject   String
-  createdAt DateTime @default(now())
-
-  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+model feestructures {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 }
 
-model FeeRecord {
-  id        Int       @id @default(autoincrement())
-  studentId Int
-  amount    Float
-  feeType   String
-  status    String
-  dueDate   DateTime
-  paidDate  DateTime?
-  note      String?
-  createdAt DateTime  @default(now())
-
-  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+model messages {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 }
 
-model Assignment {
-  id        Int      @id @default(autoincrement())
-  teacherId Int
-  title     String
-  subject   String
-  class     String
-  dueDate   DateTime
-  createdAt DateTime @default(now())
-
-  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+model notices {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 }
 
-model Message {
-  id         Int      @id @default(autoincrement())
-  senderId   Int
-  receiverId Int
-  content    String
-  createdAt  DateTime @default(now())
+model results {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+}
 
-  sender     User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+model schools {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  v         Int      @map("__v")
+  address   String
+  createdAt DateTime @db.Date
+  email     String
+  isActive  Boolean
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  logo      Json?
+  name      String
+  phone     String
+  type      String
+  updatedAt DateTime @db.Date
+}
+
+model sections {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  v              Int      @map("__v")
+  classId        String   @db.ObjectId
+  classTeacherId String   @db.ObjectId
+  createdAt      DateTime @db.Date
+  name           String
+  schoolId       String   @db.ObjectId
+  studentIds     String[]
+  updatedAt      DateTime @db.Date
+}
+
+model students {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  v             Int      @map("__v")
+  address       String
+  admissionDate DateTime @db.Date
+  createdAt     DateTime @db.Date
+  parentName    String
+  parentPhone   String
+  rollNo        String
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  sectionId     Json?
+  updatedAt     DateTime @db.Date
+  userId        String   @unique(map: "userId_1") @db.ObjectId
+}
+
+model subjects {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  v              Int      @map("__v")
+  classId        String   @db.ObjectId
+  createdAt      DateTime @db.Date
+  name           String
+  periodsPerWeek Int
+  schoolId       String   @db.ObjectId
+  teacherId      String   @db.ObjectId
+  updatedAt      DateTime @db.Date
+}
+
+model submissions {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+}
+
+model teachers {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  v             Int      @map("__v")
+  createdAt     DateTime @db.Date
+  qualification String
+  sectionIds    String[]
+  subjectIds    String[]
+  updatedAt     DateTime @db.Date
+  userId        String   @unique(map: "userId_1") @db.ObjectId
+}
+
+model timetables {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+}
+
+model users {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  v         Int      @map("__v")
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  avatar    Json?
+  createdAt DateTime @db.Date
+  email     String   @unique(map: "email_1")
+  isActive  Boolean
+  name      String
+  password  String
+  phone     String
+  role      String
+  /// Could not determine type: the field only had null or empty values in the sample set.
+  schoolId  Json?
+  updatedAt DateTime @db.Date
 }
